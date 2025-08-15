@@ -1,7 +1,9 @@
 [Settings]
-# Tiempo en segundos entre cada reproducción de la cuña.
+# Tiempo de espera ALEATORIO para la próxima cuña.
 # Ejemplos: 300 = 5 minutos, 1800 = 30 minutos, 3600 = 1 hora
-intervalo_segundos = 10
+# Se elegirá un número al azar entre estos dos valores (en segundos).
+intervalo_minimo_segundos = 10
+intervalo_maximo_segundos = 30
 
 # Nombre del archivo de audio de la cuña (debe estar en la misma carpeta)
 ruta_cuna = cuna.mp3

@@ -7,6 +7,7 @@
 
 import configparser  # Para leer el archivo de configuración 'config.txt'.
 import os  # Para interactuar con el sistema operativo (rutas de archivos).
+import random  # Importamos el módulo para la aleatoriedad.
 import sys  # Para detectar si el script se ejecuta como .exe y para los logs.
 import time  # Para manejar pausas y temporizadores.
 
@@ -83,7 +84,8 @@ def cargar_configuracion():
     """
     config = configparser.ConfigParser()
     defaults = {
-        'intervalo_segundos': '1800',
+        'intervalo_minimo_segundos': '30',
+        'intervalo_maximo_segundos': '300',
         'ruta_cuna': 'cuna.mp3',
         'volumen_atenuado': '0.10',
         'archivo_stop': 'stop.txt'
@@ -98,10 +100,20 @@ def cargar_configuracion():
     
     config.read(config_path)
     
+    # Leemos los dos nuevos valores para el intervalo.
+    min_intervalo = config.getint('Settings', 'intervalo_minimo_segundos', fallback=int(defaults['intervalo_minimo_segundos']))
+    max_intervalo = config.getint('Settings', 'intervalo_maximo_segundos', fallback=int(defaults['intervalo_maximo_segundos']))
+
+    # Medida de seguridad: si el usuario pone el mínimo más alto que el máximo, los invertimos.
+    if min_intervalo > max_intervalo:
+        print(f"ADVERTENCIA: El intervalo mínimo ({min_intervalo}s) es mayor que el máximo ({max_intervalo}s). Se invertirán los valores.")
+        min_intervalo, max_intervalo = max_intervalo, min_intervalo
+
     # Se leen los valores y se convierten al tipo de dato correcto (int, float, string).
     # Se usan rutas absolutas para evitar cualquier ambigüedad.
     settings = {
-        'intervalo': config.getint('Settings', 'intervalo_segundos', fallback=int(defaults['intervalo_segundos'])),
+        'intervalo_min': min_intervalo,
+        'intervalo_max': max_intervalo,
         'ruta_cuna': os.path.join(RUTA_BASE, config.get('Settings', 'ruta_cuna', fallback=defaults['ruta_cuna'])),
         'volumen_atenuado': config.getfloat('Settings', 'volumen_atenuado', fallback=float(defaults['volumen_atenuado'])),
         'archivo_stop': os.path.join(RUTA_BASE, config.get('Settings', 'archivo_stop', fallback=defaults['archivo_stop']))
@@ -156,6 +168,7 @@ print(f"Iniciando el reproductor de cuñas (v_final - A prueba de fallos). PID: 
 ultimo_lanzamiento = 0
 primera_vez = True
 en_pausa = False
+proximo_intervalo = 0
 
 while True:
     # Carga la configuración en cada ciclo para detectar cambios al instante.
@@ -178,12 +191,15 @@ while True:
     
     # En la primera ejecución, se inicializa el temporizador.
     if primera_vez:
-        print(f"Configuración cargada: Intervalo {config['intervalo'] / 60:.1f} min, Cuña '{os.path.basename(config['ruta_cuna'])}'")
+        # Generamos el PRIMER intervalo aleatorio.
+        proximo_intervalo = random.randint(config['intervalo_min'], config['intervalo_max'])
+        print(f"Configuración cargada: Intervalo aleatorio entre {config['intervalo_min']}s y {config['intervalo_max']}s.")
+        print(f"Próxima comprobación en {proximo_intervalo / 60:.1f} minutos...")
         ultimo_lanzamiento = time.time()
         primera_vez = False
 
     # Comprueba si ya ha pasado el tiempo para la siguiente cuña.
-    if time.time() - ultimo_lanzamiento >= config['intervalo']:
+    if time.time() - ultimo_lanzamiento >= proximo_intervalo:
         print("\n¡Tiempo de intervalo cumplido! Comprobando si hay audio...")
         
         if not os.path.exists(config['ruta_cuna']):
@@ -230,7 +246,9 @@ while True:
 
         # Reinicia el temporizador para el siguiente intervalo.
         ultimo_lanzamiento = time.time()
-        print(f"Próxima comprobación en {config['intervalo'] / 60:.1f} minutos...")
+        # Genera un NUEVO tiempo de espera aleatorio para la PRÓXIMA vez.
+        proximo_intervalo = random.randint(config['intervalo_min'], config['intervalo_max'])
+        print(f"Próxima comprobación en {proximo_intervalo / 60:.1f} minutos (valor aleatorio).")
     
     # El script "duerme" por 5 segundos antes de volver a empezar el ciclo.
     # Esto es eficiente y permite que detecte cambios en config.txt o stop.txt rápidamente.
