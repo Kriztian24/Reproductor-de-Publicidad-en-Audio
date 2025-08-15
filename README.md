@@ -214,15 +214,4 @@ El archivo `log_reproductor.txt` contiene información detallada:
 - **Sistema de pesos**: Utiliza `random.choices()` con pesos para seleccionar cuñas
 - **Validación de fechas**: Compara fechas en formato YYYYMMDD para filtrar cuñas caducadas
 
-## 🤝 Contribuciones
-
-Para contribuir al proyecto:
-
-1. Fork el repositorio
-2. Crea una rama para tu feature
-3. Realiza tus cambios
-4. Envía un pull request
-
----
-
 **Desarrollado con IA para automatizar la reproducción de cuñas de audio**
