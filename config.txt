@@ -5,8 +5,8 @@
 intervalo_minimo_segundos = 10
 intervalo_maximo_segundos = 30
 
-# Nombre del archivo de audio de la cuña (debe estar en la misma carpeta)
-ruta_cuna = cuna.mp3
+# Nombre de la CARPETA que contiene los archivos de audio para las cuñas.
+carpeta_cunas = Cunas
 
 # A qué volumen se bajará la música de fondo (0.0 = silencio, 1.0 = máximo)
 # 0.10 es un 10%. Es un buen valor para que la música se escuche muy de fondo.

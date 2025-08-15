@@ -28,13 +28,10 @@ def obtener_ruta_base():
     - __file__: Es la ruta al .py.
     """
     if getattr(sys, 'frozen', False):
-        # Estamos ejecutando como un .exe empaquetado.
         return os.path.dirname(sys.executable)
     else:
-        # Estamos ejecutando como un script .py normal.
         return os.path.dirname(os.path.abspath(__file__))
 
-# Se define la ruta base una sola vez al inicio del script.
 RUTA_BASE = obtener_ruta_base()
 
 class FileLogger:
@@ -43,38 +40,27 @@ class FileLogger:
     Esto nos permite tener un log de actividad cuando el .exe se ejecuta en segundo plano.
     """
     def __init__(self, filename):
-        # Abre el archivo en modo 'append' ('a') para añadir logs sin borrar los anteriores.
         self.log_file = open(filename, 'a', encoding='utf-8')
     
     def write(self, message):
-        """
-        Este método se llama cada vez que el programa intenta imprimir algo.
-        Añade una marca de tiempo antes de escribir el mensaje en el archivo.
-        """
         timestamp = time.strftime("[%Y-%m-%d %H:%M:%S] ")
-        # Solo añade timestamp a líneas con contenido para un log más limpio.
         if message.strip():
             self.log_file.write(f"{timestamp}{message}")
         else:
             self.log_file.write(message)
-        self.flush() # Se asegura de que el mensaje se escriba en el disco inmediatamente.
+        self.flush()
 
     def flush(self):
-        """Método necesario para que la redirección de salida funcione correctamente."""
         self.log_file.flush()
 
-# Lógica de redirección: solo se activa si el script es un .exe.
 if getattr(sys, 'frozen', False):
     log_path = os.path.join(RUTA_BASE, "log_reproductor.txt")
-    # Redirige la salida estándar (print) a nuestro archivo de log.
     sys.stdout = FileLogger(log_path)
-    # Redirige también los errores. Si el programa falla, el error quedará guardado.
     sys.stderr = sys.stdout
 
 
 # --- 3. DEFINICIÓN DE CONSTANTES Y FUNCIONES PRINCIPALES ---
 
-# Lista de procesos del sistema que debemos ignorar para no bajarles el volumen por error.
 PROCESOS_IGNORADOS = ["SystemSoundsService.exe", "audiodg.exe", "python.exe", "py.exe"]
 
 def cargar_configuracion():
@@ -86,7 +72,7 @@ def cargar_configuracion():
     defaults = {
         'intervalo_minimo_segundos': '30',
         'intervalo_maximo_segundos': '300',
-        'ruta_cuna': 'cuna.mp3',
+        'carpeta_cunas': 'Cunas', # ---> CAMBIO: De 'ruta_cuna' a 'carpeta_cunas'
         'volumen_atenuado': '0.10',
         'archivo_stop': 'stop.txt'
     }
@@ -100,36 +86,48 @@ def cargar_configuracion():
     
     config.read(config_path)
     
-    # Leemos los dos nuevos valores para el intervalo.
     min_intervalo = config.getint('Settings', 'intervalo_minimo_segundos', fallback=int(defaults['intervalo_minimo_segundos']))
     max_intervalo = config.getint('Settings', 'intervalo_maximo_segundos', fallback=int(defaults['intervalo_maximo_segundos']))
-
-    # Medida de seguridad: si el usuario pone el mínimo más alto que el máximo, los invertimos.
     if min_intervalo > max_intervalo:
         print(f"ADVERTENCIA: El intervalo mínimo ({min_intervalo}s) es mayor que el máximo ({max_intervalo}s). Se invertirán los valores.")
         min_intervalo, max_intervalo = max_intervalo, min_intervalo
 
-    # Se leen los valores y se convierten al tipo de dato correcto (int, float, string).
-    # Se usan rutas absolutas para evitar cualquier ambigüedad.
     settings = {
         'intervalo_min': min_intervalo,
         'intervalo_max': max_intervalo,
-        'ruta_cuna': os.path.join(RUTA_BASE, config.get('Settings', 'ruta_cuna', fallback=defaults['ruta_cuna'])),
+        'carpeta_cunas': os.path.join(RUTA_BASE, config.get('Settings', 'carpeta_cunas', fallback=defaults['carpeta_cunas'])), # ---> CAMBIO
         'volumen_atenuado': config.getfloat('Settings', 'volumen_atenuado', fallback=float(defaults['volumen_atenuado'])),
         'archivo_stop': os.path.join(RUTA_BASE, config.get('Settings', 'archivo_stop', fallback=defaults['archivo_stop']))
     }
     return settings
 
+# ---> NUEVA FUNCIÓN para elegir una cuña al azar de una carpeta
+def elegir_cuna_aleatoria(carpeta_path):
+    """
+    Busca archivos de audio (.mp3, .wav, .ogg) en la carpeta especificada
+    y devuelve la ruta completa a un archivo elegido al azar.
+    """
+    if not os.path.isdir(carpeta_path):
+        print(f"¡ERROR! La carpeta de cuñas '{carpeta_path}' no existe.")
+        return None
+
+    extensiones_validas = ('.mp3', '.wav', '.ogg')
+    cunas_disponibles = [f for f in os.listdir(carpeta_path) if f.lower().endswith(extensiones_validas)]
+
+    if cunas_disponibles:
+        nombre_cuna_elegida = random.choice(cunas_disponibles)
+        print(f"Se ha elegido la cuña aleatoria: '{nombre_cuna_elegida}'")
+        return os.path.join(carpeta_path, nombre_cuna_elegida)
+    else:
+        print(f"ADVERTENCIA: No se encontraron archivos de audio en la carpeta '{carpeta_path}'.")
+        return None
+
 def get_sesiones_activas():
-    """
-    Utiliza pycaw para escanear todas las aplicaciones que están emitiendo sonido.
-    Devuelve una lista de las sesiones de audio activas, ignorando las del sistema.
-    """
+    # ... (Sin cambios aquí)
     sesiones_activas = []
     try:
         sessions = AudioUtilities.GetAllSessions()
         for session in sessions:
-            # session.State == 1 significa que la sesión está activa (sonando).
             if session.State == 1 and session.Process and session.Process.name() not in PROCESOS_IGNORADOS:
                 sesiones_activas.append(session)
     except Exception as e:
@@ -137,99 +135,82 @@ def get_sesiones_activas():
     return sesiones_activas
 
 def reproducir_cuna_con_volumen(ruta_audio, volumen):
-    """
-    Utiliza pygame para reproducir el archivo de la cuña con un volumen específico.
-    Espera a que la cuña termine antes de continuar.
-    """
+    # ... (Sin cambios aquí)
     try:
         print(f"Reproduciendo cuña a un volumen de {volumen:.0%}")
         pygame.mixer.init()
         pygame.mixer.music.load(ruta_audio)
-        pygame.mixer.music.set_volume(volumen) # Ajusta el volumen (0.0 a 1.0)
+        pygame.mixer.music.set_volume(volumen)
         pygame.mixer.music.play()
-        # Bucle que espera hasta que la música de pygame termine.
         while pygame.mixer.music.get_busy():
             time.sleep(0.1)
         pygame.mixer.quit()
         print("La cuña ha terminado.")
     except Exception as e:
         print(f"Error al reproducir la cuña con Pygame: {e}")
-        # Se asegura de que pygame se cierre si hay un error.
         if pygame.mixer.get_init():
             pygame.mixer.quit()
 
-
 # --- 4. BUCLE PRINCIPAL DE LA APLICACIÓN ---
-# Este bucle se ejecuta infinitamente, es el corazón del programa.
-
 print(f"Iniciando el reproductor de cuñas (v_final - A prueba de fallos). PID: {os.getpid()}")
 
-# Variables para controlar el tiempo y el estado del programa.
 ultimo_lanzamiento = 0
 primera_vez = True
 en_pausa = False
 proximo_intervalo = 0
 
 while True:
-    # Carga la configuración en cada ciclo para detectar cambios al instante.
     config = cargar_configuracion()
     
-    # Lógica de pausa: comprueba si existe el archivo 'stop.txt'.
     if os.path.exists(config['archivo_stop']):
         if not en_pausa:
             print(f"\nArchivo '{os.path.basename(config['archivo_stop'])}' detectado. Funcionalidad en pausa.")
             en_pausa = True
         time.sleep(5)
-        continue # Salta el resto del ciclo y vuelve a empezar.
+        continue
 
-    # Si salimos de la pausa, se notifica y se reinicia el temporizador.
     if en_pausa:
         print(f"\nArchivo '{os.path.basename(config['archivo_stop'])}' no encontrado. Reanudando funcionalidad.")
         en_pausa = False
-        ultimo_lanzamiento = time.time()
-        print(f"Temporizador reiniciado. Próxima comprobación en {config['intervalo'] / 60:.1f} minutos...")
-    
-    # En la primera ejecución, se inicializa el temporizador.
+        # ---> CAMBIO: Al reanudar, forzamos que se regenere el temporizador reiniciando el 'primer arranque'.
+        primera_vez = True
+
     if primera_vez:
-        # Generamos el PRIMER intervalo aleatorio.
         proximo_intervalo = random.randint(config['intervalo_min'], config['intervalo_max'])
-        print(f"Configuración cargada: Intervalo aleatorio entre {config['intervalo_min']}s y {config['intervalo_max']}s.")
+        # ---> CAMBIO: El mensaje de inicio ahora muestra la carpeta en lugar de un archivo.
+        print(f"Configuración cargada: Carpeta de cuñas '{os.path.basename(config['carpeta_cunas'])}', Intervalo aleatorio entre {config['intervalo_min']}s y {config['intervalo_max']}s.")
         print(f"Próxima comprobación en {proximo_intervalo / 60:.1f} minutos...")
         ultimo_lanzamiento = time.time()
         primera_vez = False
 
-    # Comprueba si ya ha pasado el tiempo para la siguiente cuña.
     if time.time() - ultimo_lanzamiento >= proximo_intervalo:
         print("\n¡Tiempo de intervalo cumplido! Comprobando si hay audio...")
         
-        if not os.path.exists(config['ruta_cuna']):
-            print(f"¡ERROR! No se encontró el archivo de cuña '{config['ruta_cuna']}'.")
-        else:
+        # ---> CAMBIO: Se elige una cuña de la carpeta ANTES de buscar audio.
+        cuna_a_reproducir = elegir_cuna_aleatoria(config['carpeta_cunas'])
+        
+        # ---> CAMBIO: El resto de la lógica solo se ejecuta si se encontró una cuña.
+        if cuna_a_reproducir:
             sesiones_activas = get_sesiones_activas()
             if sesiones_activas:
-                
                 volumenes_originales = {}
-                
-                # --- Bloque de seguridad TRY...FINALLY ---
-                # Esto garantiza que el volumen se restaure incluso si el programa
-                # se cierra o falla mientras la cuña se está reproduciendo.
                 try:
                     # --- FASE 1: ATENUAR VOLUMEN ---
                     print(f"¡Audio detectado en {len(sesiones_activas)} aplicación(es)!")
-                    volumen_objetivo_cuna = 0.8 # Volumen por defecto
+                    volumen_objetivo_cuna = 0.8
                     print("Atenuando música de fondo...")
                     for i, session in enumerate(sesiones_activas):
                         volume_control = session.SimpleAudioVolume
                         volumen_actual = volume_control.GetMasterVolume()
                         volumenes_originales[session.Process.pid] = (session, volumen_actual)
                         if i == 0:
-                            volumen_objetivo_cuna = volumen_actual # Adapta el volumen de la cuña
+                            volumen_objetivo_cuna = volumen_actual
                             print(f"   -> {session.Process.name()} [PID: {session.Process.pid}] está a {volumen_actual:.0%}. Se usará como referencia.")
                         volume_control.SetMasterVolume(config['volumen_atenuado'], None)
 
                     # --- FASE 2: REPRODUCIR CUÑA ---
-                    reproducir_cuna_con_volumen(config['ruta_cuna'], volumen_objetivo_cuna)
-
+                    # ---> CAMBIO: Se reproduce la cuña elegida aleatoriamente.
+                    reproducir_cuna_con_volumen(cuna_a_reproducir, volumen_objetivo_cuna)
                 finally:
                     # --- FASE 3: RESTAURAR VOLUMEN (SE EJECUTA SIEMPRE) ---
                     if volumenes_originales:
@@ -239,17 +220,13 @@ while True:
                                 session.SimpleAudioVolume.SetMasterVolume(vol_original, None)
                                 print(f"   -> Volumen de {session.Process.name()} [PID: {pid}] restaurado a {vol_original:.0%}")
                             except Exception:
-                                # Esto puede pasar si el usuario cerró la aplicación (ej: Chrome) mientras sonaba la cuña.
                                 print(f"No se pudo restaurar el volumen para el proceso {pid} (posiblemente se cerró).")
             else:
                 print("No se detectó audio. Se omitirá la cuña en este ciclo.")
-
+        
         # Reinicia el temporizador para el siguiente intervalo.
         ultimo_lanzamiento = time.time()
-        # Genera un NUEVO tiempo de espera aleatorio para la PRÓXIMA vez.
         proximo_intervalo = random.randint(config['intervalo_min'], config['intervalo_max'])
         print(f"Próxima comprobación en {proximo_intervalo / 60:.1f} minutos (valor aleatorio).")
     
-    # El script "duerme" por 5 segundos antes de volver a empezar el ciclo.
-    # Esto es eficiente y permite que detecte cambios en config.txt o stop.txt rápidamente.
     time.sleep(5)
