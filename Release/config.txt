@@ -1,0 +1,15 @@
+[Settings]
+# Tiempo en segundos entre cada reproducción de la cuña.
+# Ejemplos: 300 = 5 minutos, 1800 = 30 minutos, 3600 = 1 hora
+intervalo_segundos = 300
+
+# Nombre del archivo de audio de la cuña (debe estar en la misma carpeta)
+ruta_cuna = cuna.mp3
+
+# A qué volumen se bajará la música de fondo (0.0 = silencio, 1.0 = máximo)
+# 0.10 es un 10%. Es un buen valor para que la música se escuche muy de fondo.
+volumen_atenuado = 0.10
+
+# Para pausar la funcionalidad, crea un archivo con este nombre y ruta.
+# Bórralo para reanudar. Puedes usar rutas absolutas (ej: C:\Temp\stop.txt)
+archivo_stop = stop.txt
