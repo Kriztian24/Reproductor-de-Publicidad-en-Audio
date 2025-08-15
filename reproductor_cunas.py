@@ -8,12 +8,17 @@
 import configparser  # Para leer el archivo de configuración 'config.txt'.
 import os  # Para interactuar con el sistema operativo (rutas de archivos).
 import random  # Importamos el módulo para la aleatoriedad.
+import re  # Para analizar los nombres de archivo en busca de pesos.
 import sys  # Para detectar si el script se ejecuta como .exe y para los logs.
 import time  # Para manejar pausas y temporizadores.
+from datetime import datetime
 
 import pygame  # Para reproducir el audio de la cuña con control de volumen.
 # Importación específica para controlar el audio de otras aplicaciones en Windows.
 from pycaw.pycaw import AudioUtilities
+
+ # Para manejar las fechas de caducidad de las cuñas.
+
 
 # --- 2. FUNCIONES DE CONFIGURACIÓN INICIAL Y LOGS ---
 # Estas funciones preparan el entorno del script, encontrando sus propios archivos
@@ -101,25 +106,69 @@ def cargar_configuracion():
     }
     return settings
 
-# ---> NUEVA FUNCIÓN para elegir una cuña al azar de una carpeta
+# ---> FUNCIÓN: Ahora valida la fecha de caducidad en el nombre del archivo.
 def elegir_cuna_aleatoria(carpeta_path):
     """
-    Busca archivos de audio (.mp3, .wav, .ogg) en la carpeta especificada
-    y devuelve la ruta completa a un archivo elegido al azar.
+    Busca archivos de audio, filtra los caducados y elige uno al azar
+    basado en un sistema de "pesos" definido en el nombre del archivo.
+    Formato: '[YYYYMMDD] Nombre de la promo [_wX].mp3'
+    - Los archivos sin fecha son permanentes.
+    - Los archivos sin peso (_wX) tienen un peso por defecto de 1.
     """
     if not os.path.isdir(carpeta_path):
         print(f"¡ERROR! La carpeta de cuñas '{carpeta_path}' no existe.")
         return None
 
+    hoy_str = datetime.now().strftime("%Y%m%d")
     extensiones_validas = ('.mp3', '.wav', '.ogg')
-    cunas_disponibles = [f for f in os.listdir(carpeta_path) if f.lower().endswith(extensiones_validas)]
+    
+    cunas_validas = [] # ---> Lista para los nombres de archivo.
+    pesos_cunas = []   # ---> Lista para los pesos correspondientes.
 
-    if cunas_disponibles:
-        nombre_cuna_elegida = random.choice(cunas_disponibles)
-        print(f"Se ha elegido la cuña aleatoria: '{nombre_cuna_elegida}'")
+    for nombre_archivo in os.listdir(carpeta_path):
+        if not nombre_archivo.lower().endswith(extensiones_validas):
+            continue
+
+        # 1. Validación por fecha (lógica ya existente)
+        es_valida_por_fecha = False
+        if len(nombre_archivo) > 8 and nombre_archivo[:8].isdigit():
+            fecha_caducidad_str = nombre_archivo[:8]
+            if fecha_caducidad_str >= hoy_str:
+                es_valida_por_fecha = True
+            else:
+                print(f"INFO: Omitiendo cuña caducada: '{nombre_archivo}'")
+        else:
+            es_valida_por_fecha = True # Es permanente (sin fecha)
+
+        # 2. Si es válida por fecha, extraemos su peso.
+        if es_valida_por_fecha:
+            # Quitamos la extensión para facilitar la búsqueda del peso.
+            nombre_sin_extension, _ = os.path.splitext(nombre_archivo)
+            
+            # Usamos una expresión regular para encontrar el patrón '_w' seguido de dígitos al final.
+            match = re.search(r'_w(\d+)$', nombre_sin_extension)
+            
+            peso_actual = 1 # Peso por defecto
+            if match:
+                # Si encontramos el patrón, extraemos el número y lo convertimos a entero.
+                peso_actual = int(match.group(1))
+                if peso_actual < 1: peso_actual = 1 # El peso mínimo es 1.
+                print(f"INFO: Cuña '{nombre_archivo}' tiene un peso de {peso_actual}.")
+            
+            # Añadimos la cuña y su peso a nuestras listas.
+            cunas_validas.append(nombre_archivo)
+            pesos_cunas.append(peso_actual)
+
+    # 3. Hacemos el sorteo ponderado.
+    if cunas_validas:
+        # random.choices() devuelve una lista, por eso tomamos el primer elemento [0].
+        # El parámetro 'weights' le indica la probabilidad de cada elemento.
+        nombre_cuna_elegida = random.choices(cunas_validas, weights=pesos_cunas, k=1)[0]
+        
+        print(f"Se ha elegido la cuña ponderada y aleatoria: '{nombre_cuna_elegida}'")
         return os.path.join(carpeta_path, nombre_cuna_elegida)
     else:
-        print(f"ADVERTENCIA: No se encontraron archivos de audio en la carpeta '{carpeta_path}'.")
+        print(f"ADVERTENCIA: No se encontraron cuñas válidas (no caducadas o permanentes) en la carpeta.")
         return None
 
 def get_sesiones_activas():
